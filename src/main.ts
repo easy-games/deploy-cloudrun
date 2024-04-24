@@ -203,7 +203,7 @@ export async function run(): Promise<void> {
       // Set optional flags from inputs
       const compiledEnvVars = parseKVStringAndFile(envVars, envVarsFile);
       if (compiledEnvVars && Object.keys(compiledEnvVars).length > 0) {
-        cmd.push('--update-env-vars', joinKVStringForGCloud(compiledEnvVars));
+        cmd.push('--set-env-vars', joinKVStringForGCloud(compiledEnvVars));
       }
       if (secrets && Object.keys(secrets).length > 0) {
         cmd.push('--set-secrets', joinKVStringForGCloud(secrets));
@@ -227,10 +227,10 @@ export async function run(): Promise<void> {
       // Set optional flags from inputs
       const compiledEnvVars = parseKVStringAndFile(envVars, envVarsFile);
       if (compiledEnvVars && Object.keys(compiledEnvVars).length > 0) {
-        cmd.push('--update-env-vars', joinKVStringForGCloud(compiledEnvVars));
+        cmd.push('--set-env-vars', joinKVStringForGCloud(compiledEnvVars));
       }
       if (secrets && Object.keys(secrets).length > 0) {
-        cmd.push('--update-secrets', joinKVStringForGCloud(secrets));
+        cmd.push('--set-secrets', joinKVStringForGCloud(secrets));
       }
       if (tag) {
         cmd.push('--tag', tag);
