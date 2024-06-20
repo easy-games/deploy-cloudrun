@@ -4,6 +4,14 @@
 * The default option for secrets_update_strategy is now "overwrite" instead of "merge".
 * The default option for env_vars_update_strategy is now "overwrite" instead of "merge".
 
+* Setup Prometheus monitoring
+Use the flag `setup_prometheus` to setup a default prometheus monitoring sidecar container for the service, default is false.
+
+```yaml
+with:
+  setup_prometheus: true
+```
+
 ## Overview
 
 The `deploy-cloudrun` GitHub Action deploys to Google [Cloud Run][cloud-run]. It

@@ -119,6 +119,7 @@ export async function run(): Promise<void> {
     const labels = parseKVString(getInput('labels'));
     const skipDefaultLabels = parseBoolean(getInput('skip_default_labels'));
     const flags = getInput('flags');
+    const setupPrometheus = parseBoolean(getInput('setup_prometheus'), false);
 
     let responseType = ResponseTypes.DEPLOY; // Default response type for output parsing
     let cmd;
@@ -243,6 +244,12 @@ export async function run(): Promise<void> {
     if (flags) {
       const flagList = parseFlags(flags);
       if (flagList) cmd = cmd.concat(flagList);
+    }
+
+    if(setupPrometheus) {
+      cmd.push('--depends-on', 'collector')
+      cmd.push('--container', 'collector')
+      cmd.push('--image', 'us-docker.pkg.dev/cloud-ops-agents-artifacts/cloud-run-gmp-sidecar/cloud-run-gmp-sidecar:1.1.1')
     }
 
     // Install gcloud if not already installed.
