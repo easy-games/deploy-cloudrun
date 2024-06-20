@@ -363,6 +363,7 @@ function setEnvVarsFlags(cmd: string[], envVars: string, envVarsFile: string, st
       );
     }
     if (setupTelemetry) {
+      compiledEnvVars['OTEL_METRICS_EXPORTER'] = 'oltp';
       compiledEnvVars['OTEL_EXPORTER_OTLP_ENDPOINT'] = 'http://localhost:4317';
     }
     cmd.push(flag, joinKVStringForGCloud(compiledEnvVars));
