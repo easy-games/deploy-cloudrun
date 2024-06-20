@@ -5,11 +5,11 @@
 * The default option for env_vars_update_strategy is now "overwrite" instead of "merge".
 
 * Setup Prometheus monitoring
-Use the flag `setup_prometheus` to setup a default prometheus monitoring sidecar container for the service, default is false.
+Use the flag `setup+telemetry` to setup a default prometheus monitoring sidecar container for the service, default is false.
 
 ```yaml
 with:
-  setup_prometheus: true
+  setup+telemetry: true
 ```
 
 ## Overview

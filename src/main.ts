@@ -119,7 +119,7 @@ export async function run(): Promise<void> {
     const labels = parseKVString(getInput('labels'));
     const skipDefaultLabels = parseBoolean(getInput('skip_default_labels'));
     const flags = getInput('flags');
-    const setupPrometheus = parseBoolean(getInput('setup_prometheus'), false);
+    const setupTelemetry = parseBoolean(getInput('setup+telemetry'), false);
 
     let responseType = ResponseTypes.DEPLOY; // Default response type for output parsing
     let cmd;
@@ -171,6 +171,10 @@ export async function run(): Promise<void> {
       );
 
       cmd = ['run', 'jobs', 'deploy', job];
+
+      if (setupTelemetry) {
+        cmd.push('--container', 'app')
+      }
 
       if (image) {
         cmd.push('--image', image);
@@ -246,10 +250,10 @@ export async function run(): Promise<void> {
       if (flagList) cmd = cmd.concat(flagList);
     }
 
-    if(setupPrometheus) {
+    if(setupTelemetry) {
       cmd.push('--depends-on', 'collector')
       cmd.push('--container', 'collector')
-      cmd.push('--image', 'us-docker.pkg.dev/cloud-ops-agents-artifacts/cloud-run-gmp-sidecar/cloud-run-gmp-sidecar:1.1.1')
+      cmd.push('--image', 'us-docker.pkg.dev/easygg-platform-load-testing/service-images-us/oltp-collector:1')
     }
 
     // Install gcloud if not already installed.
@@ -344,7 +348,7 @@ async function computeGcloudVersion(str: string): Promise<string> {
   return str;
 }
 
-function setEnvVarsFlags(cmd: string[], envVars: string, envVarsFile: string, strategy: string) {
+function setEnvVarsFlags(cmd: string[], envVars: string, envVarsFile: string, strategy: string, setupTelemetry: boolean = false) {
   const compiledEnvVars = parseKVStringAndFile(envVars, envVarsFile);
   if (compiledEnvVars && Object.keys(compiledEnvVars).length > 0) {
     let flag = '';
@@ -357,6 +361,9 @@ function setEnvVarsFlags(cmd: string[], envVars: string, envVarsFile: string, st
         `Invalid "env_vars_update_strategy" value "${strategy}", valid values ` +
           `are "overwrite" and "merge".`,
       );
+    }
+    if (setupTelemetry) {
+      compiledEnvVars['OTEL_EXPORTER_OTLP_ENDPOINT'] = 'http://localhost:4317';
     }
     cmd.push(flag, joinKVStringForGCloud(compiledEnvVars));
   }
