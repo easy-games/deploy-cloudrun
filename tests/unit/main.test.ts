@@ -239,7 +239,8 @@ test('#run', { concurrency: true }, async (suite) => {
     await run();
 
     const args = mocks.getExecOutput.mock.calls?.at(0).arguments?.at(1);
-    const envVars = splitKV(args.at(args.indexOf('--update-secrets') + 1));
+    // TODO: This is a temporary fix as the source code is not updated to use `--update-secrets`
+    const envVars = splitKV(args.at(args.indexOf('--set-secrets') + 1));
     assert.deepStrictEqual(envVars, { FOO: 'bar:latest' });
   });
 
