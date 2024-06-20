@@ -205,6 +205,7 @@ test('#run', { concurrency: true }, async (suite) => {
     const mocks = defaultMocks(t.mock, {
       service: 'my-test-service',
       env_vars: 'FOO=BAR',
+      env_vars_update_strategy: 'merge',
     });
 
     await run();
@@ -218,7 +219,7 @@ test('#run', { concurrency: true }, async (suite) => {
     const mocks = defaultMocks(t.mock, {
       service: 'my-test-service',
       env_vars: 'FOO=BAR',
-      env_vars_update_strategy: 'overwrite',
+      // env_vars_update_strategy: 'overwrite',
     });
 
     await run();
@@ -232,6 +233,7 @@ test('#run', { concurrency: true }, async (suite) => {
     const mocks = defaultMocks(t.mock, {
       service: 'my-test-service',
       secrets: 'FOO=bar:latest',
+      env_vars_update_strategy: 'merge',
     });
 
     await run();
@@ -245,7 +247,7 @@ test('#run', { concurrency: true }, async (suite) => {
     const mocks = defaultMocks(t.mock, {
       service: 'my-test-service',
       secrets: 'FOO=bar:latest',
-      secrets_update_strategy: 'overwrite',
+      // secrets_update_strategy: 'overwrite',
     });
 
     await run();
