@@ -18,6 +18,7 @@ import path from 'path';
 
 import {
   addPath,
+  debug as logDebug,
   getInput,
   info as logInfo,
   setFailed,
@@ -26,6 +27,9 @@ import {
 } from '@actions/core';
 import { getExecOutput } from '@actions/exec';
 import * as toolCache from '@actions/tool-cache';
+import { readFile } from 'fs/promises';
+import { parse as parseYAML } from 'yaml';
+
 import {
   errorMessage,
   isPinnedToHead,
@@ -38,7 +42,6 @@ import {
   parseKVStringAndFile,
   pinnedToHeadWarning,
   presence,
-  stubEnv,
 } from '@google-github-actions/actions-utils';
 import {
   authenticateGcloudSDK,
@@ -81,10 +84,10 @@ enum ResponseTypes {
  */
 export async function run(): Promise<void> {
   // Register metrics
-  const restoreEnv = stubEnv({
-    CLOUDSDK_METRICS_ENVIRONMENT: 'github-actions-deploy-cloudrun',
-    CLOUDSDK_METRICS_ENVIRONMENT_VERSION: appVersion,
-  });
+  process.env.CLOUDSDK_CORE_DISABLE_PROMPTS = '1';
+  process.env.CLOUDSDK_METRICS_ENVIRONMENT = 'github-actions-deploy-cloudrun';
+  process.env.CLOUDSDK_METRICS_ENVIRONMENT_VERSION = appVersion;
+  process.env.GOOGLE_APIS_USER_AGENT = `google-github-actions:deploy-cloudrun/${appVersion}`;
 
   // Warn if pinned to HEAD
   if (isPinnedToHead()) {
@@ -102,7 +105,9 @@ export async function run(): Promise<void> {
     const gcloudComponent = presence(getInput('gcloud_component')); // Cloud SDK component version
     const envVars = getInput('env_vars'); // String of env vars KEY=VALUE,...
     const envVarsFile = getInput('env_vars_file'); // File that is a string of env vars KEY=VALUE,...
+    const envVarsUpdateStrategy = getInput('env_vars_update_strategy') || 'overwrite';
     const secrets = parseKVString(getInput('secrets')); // String of secrets KEY=VALUE,...
+    const secretsUpdateStrategy = getInput('secrets_update_strategy') || 'overwrite';
     const region = parseCSV(getInput('region') || 'us-central1');
     const source = getInput('source'); // Source directory
     const suffix = getInput('suffix');
@@ -146,45 +151,17 @@ export async function run(): Promise<void> {
       cmd = ['run', 'services', 'update-traffic', service];
       if (revTraffic) cmd.push('--to-revisions', revTraffic);
       if (tagTraffic) cmd.push('--to-tags', tagTraffic);
-
-      const providedButIgnored: Record<string, boolean> = {
-        image: image !== '',
-        metadata: metadata !== '',
-        source: source !== '',
-        env_vars: envVars !== '',
-        no_traffic: noTraffic,
-        secrets: Object.keys(secrets).length > 0,
-        suffix: suffix !== '',
-        tag: tag !== '',
-        labels: Object.keys(labels).length > 0,
-        timeout: timeout !== '',
-      };
-      for (const key in providedButIgnored) {
-        if (providedButIgnored[key]) {
-          logWarning(`Updating traffic, ignoring "${key}" input`);
-        }
-      }
     } else if (metadata) {
-      cmd = ['run', 'services', 'replace', metadata];
+      const contents = await readFile(metadata, 'utf8');
+      const parsed = parseYAML(contents);
 
-      const providedButIgnored: Record<string, boolean> = {
-        image: image !== '',
-        service: service !== '',
-        source: source !== '',
-        env_vars: envVars !== '',
-        no_traffic: noTraffic,
-        secrets: Object.keys(secrets).length > 0,
-        suffix: suffix !== '',
-        tag: tag !== '',
-        revision_traffic: revTraffic !== '',
-        tag_traffic: revTraffic !== '',
-        labels: Object.keys(labels).length > 0,
-        timeout: timeout !== '',
-      };
-      for (const key in providedButIgnored) {
-        if (providedButIgnored[key]) {
-          logWarning(`Using metadata YAML, ignoring "${key}" input`);
-        }
+      const kind = parsed?.kind;
+      if (kind === 'Service') {
+        cmd = ['run', 'services', 'replace', metadata];
+      } else if (kind === 'Job') {
+        cmd = ['run', 'jobs', 'replace', metadata];
+      } else {
+        throw new Error(`Unkown metadata type "${kind}", expected "Job" or "Service"`);
       }
     } else if (job) {
       logWarning(
@@ -192,7 +169,7 @@ export async function run(): Promise<void> {
           `not covered by the semver backwards compatibility guarantee.`,
       );
 
-      cmd = ['run', 'jobs', 'deploy', job, '--quiet'];
+      cmd = ['run', 'jobs', 'deploy', job];
 
       if (image) {
         cmd.push('--image', image);
@@ -201,12 +178,18 @@ export async function run(): Promise<void> {
       }
 
       // Set optional flags from inputs
-      const compiledEnvVars = parseKVStringAndFile(envVars, envVarsFile);
-      if (compiledEnvVars && Object.keys(compiledEnvVars).length > 0) {
-        cmd.push('--set-env-vars', joinKVStringForGCloud(compiledEnvVars));
-      }
-      if (secrets && Object.keys(secrets).length > 0) {
-        cmd.push('--set-secrets', joinKVStringForGCloud(secrets));
+      setEnvVarsFlags(cmd, envVars, envVarsFile, envVarsUpdateStrategy);
+      setSecretsFlags(cmd, secrets, secretsUpdateStrategy);
+
+      // There is no --update-secrets flag on jobs, but there will be in the
+      // future. At that point, we can remove this.
+      const idx = cmd.indexOf('--update-secrets');
+      if (idx >= 0) {
+        logWarning(
+          `Cloud Run does not allow updating secrets on jobs, ignoring ` +
+            `"secrets_update_strategy" value of "merge"`,
+        );
+        cmd[idx] = '--set-secrets';
       }
 
       // Compile the labels
@@ -216,7 +199,7 @@ export async function run(): Promise<void> {
         cmd.push('--labels', joinKVStringForGCloud(compiledLabels));
       }
     } else {
-      cmd = ['run', 'deploy', service, '--quiet'];
+      cmd = ['run', 'deploy', service];
 
       if (image) {
         cmd.push('--image', image);
@@ -225,13 +208,9 @@ export async function run(): Promise<void> {
       }
 
       // Set optional flags from inputs
-      const compiledEnvVars = parseKVStringAndFile(envVars, envVarsFile);
-      if (compiledEnvVars && Object.keys(compiledEnvVars).length > 0) {
-        cmd.push('--set-env-vars', joinKVStringForGCloud(compiledEnvVars));
-      }
-      if (secrets && Object.keys(secrets).length > 0) {
-        cmd.push('--set-secrets', joinKVStringForGCloud(secrets));
-      }
+      setEnvVarsFlags(cmd, envVars, envVarsFile, envVarsUpdateStrategy);
+      setSecretsFlags(cmd, secrets, secretsUpdateStrategy);
+
       if (tag) {
         cmd.push('--tag', tag);
       }
@@ -249,17 +228,14 @@ export async function run(): Promise<void> {
 
     // Push common flags
     cmd.push('--format', 'json');
-    if (region) {
-      switch (region.length) {
-        case 0:
-          break;
-        case 1:
-          cmd.push('--region', region[0]);
-          break;
-        default:
-          cmd.push('--region', region.join(','));
-          break;
-      }
+    if (region?.length > 0) {
+      cmd.push(
+        '--region',
+        region
+          .flat()
+          .filter((e) => e !== undefined && e !== null && e !== '')
+          .join(','),
+      );
     }
     if (projectId) cmd.push('--project', projectId);
 
@@ -296,6 +272,7 @@ export async function run(): Promise<void> {
     const options = { silent: !isDebug, ignoreReturnCode: true };
     const commandString = `${toolCommand} ${cmd.join(' ')}`;
     logInfo(`Running: ${commandString}`);
+    logDebug(JSON.stringify({ toolCommand: toolCommand, args: cmd, options: options }, null, '  '));
 
     // Run gcloud cmd.
     const output = await getExecOutput(toolCommand, cmd, options);
@@ -315,8 +292,6 @@ export async function run(): Promise<void> {
   } catch (err) {
     const msg = errorMessage(err);
     setFailed(`google-github-actions/deploy-cloudrun failed with: ${msg}`);
-  } finally {
-    restoreEnv();
   }
 }
 
@@ -360,6 +335,41 @@ async function computeGcloudVersion(str: string): Promise<string> {
     return await getLatestGcloudSDKVersion();
   }
   return str;
+}
+
+function setEnvVarsFlags(cmd: string[], envVars: string, envVarsFile: string, strategy: string) {
+  const compiledEnvVars = parseKVStringAndFile(envVars, envVarsFile);
+  if (compiledEnvVars && Object.keys(compiledEnvVars).length > 0) {
+    let flag = '';
+    if (strategy === 'overwrite') {
+      flag = '--set-env-vars';
+    } else if (strategy === 'merge') {
+      flag = '--update-env-vars';
+    } else {
+      throw new Error(
+        `Invalid "env_vars_update_strategy" value "${strategy}", valid values ` +
+          `are "overwrite" and "merge".`,
+      );
+    }
+    cmd.push(flag, joinKVStringForGCloud(compiledEnvVars));
+  }
+}
+
+function setSecretsFlags(cmd: string[], secrets: KVPair, strategy: string) {
+  if (secrets && Object.keys(secrets).length > 0) {
+    let flag = '';
+    if (strategy === 'overwrite') {
+      flag = '--set-secrets';
+    } else if (strategy === 'merge') {
+      flag = '--update-secrets';
+    } else {
+      throw new Error(
+        `Invalid "secrets_update_strategy" value "${strategy}", valid values ` +
+          `are "overwrite" and "merge".`,
+      );
+    }
+    cmd.push(flag, joinKVStringForGCloud(secrets));
+  }
 }
 
 /**
