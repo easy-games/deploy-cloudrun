@@ -119,7 +119,7 @@ export async function run(): Promise<void> {
     const labels = parseKVString(getInput('labels'));
     const skipDefaultLabels = parseBoolean(getInput('skip_default_labels'));
     const flags = getInput('flags');
-    const setupTelemetry = parseBoolean(getInput('setup+telemetry'), false);
+    const setupTelemetry = parseBoolean(getInput('setup_telemetry'), false);
 
     let responseType = ResponseTypes.DEPLOY; // Default response type for output parsing
     let cmd;

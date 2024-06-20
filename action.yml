@@ -265,7 +265,7 @@ inputs:
       YAML service description for the Cloud Run service.
     required: false
 
-  setup+telemetry:
+  setup_telemetry:
     description: |-
       (Optional) If true, the GitHub Action will set up Prometheus monitoring
       for the Cloud Run service. The default value is false.
