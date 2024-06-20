@@ -172,10 +172,6 @@ export async function run(): Promise<void> {
 
       cmd = ['run', 'jobs', 'deploy', job];
 
-      if (setupTelemetry) {
-        cmd.push('--container', 'app')
-      }
-
       if (image) {
         cmd.push('--image', image);
       } else if (source) {
@@ -205,6 +201,10 @@ export async function run(): Promise<void> {
       }
     } else {
       cmd = ['run', 'deploy', service];
+
+      if (setupTelemetry) {
+        cmd.push('--container', 'app')
+      }
 
       if (image) {
         cmd.push('--image', image);
