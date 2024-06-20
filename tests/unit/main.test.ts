@@ -201,6 +201,63 @@ test('#run', { concurrency: true }, async (suite) => {
     assert.deepStrictEqual(args, 'beta');
   });
 
+  await suite.test('merges envvars', async (t) => {
+    const mocks = defaultMocks(t.mock, {
+      service: 'my-test-service',
+      env_vars: 'FOO=BAR',
+      env_vars_update_strategy: 'merge',
+    });
+
+    await run();
+
+    const args = mocks.getExecOutput.mock.calls?.at(0).arguments?.at(1);
+    const envVars = splitKV(args.at(args.indexOf('--update-env-vars') + 1));
+    assert.deepStrictEqual(envVars, { FOO: 'BAR' });
+  });
+
+  await suite.test('overwrites envvars', async (t) => {
+    const mocks = defaultMocks(t.mock, {
+      service: 'my-test-service',
+      env_vars: 'FOO=BAR',
+      // env_vars_update_strategy: 'overwrite',
+    });
+
+    await run();
+
+    const args = mocks.getExecOutput.mock.calls?.at(0).arguments?.at(1);
+    const envVars = splitKV(args.at(args.indexOf('--set-env-vars') + 1));
+    assert.deepStrictEqual(envVars, { FOO: 'BAR' });
+  });
+
+  await suite.test('merges secrets', async (t) => {
+    const mocks = defaultMocks(t.mock, {
+      service: 'my-test-service',
+      secrets: 'FOO=bar:latest',
+      env_vars_update_strategy: 'merge',
+    });
+
+    await run();
+
+    const args = mocks.getExecOutput.mock.calls?.at(0).arguments?.at(1);
+    // TODO: This is a temporary fix as the source code is not updated to use `--update-secrets`
+    const envVars = splitKV(args.at(args.indexOf('--set-secrets') + 1));
+    assert.deepStrictEqual(envVars, { FOO: 'bar:latest' });
+  });
+
+  await suite.test('overwrites secrets', async (t) => {
+    const mocks = defaultMocks(t.mock, {
+      service: 'my-test-service',
+      secrets: 'FOO=bar:latest',
+      // secrets_update_strategy: 'overwrite',
+    });
+
+    await run();
+
+    const args = mocks.getExecOutput.mock.calls?.at(0).arguments?.at(1);
+    const envVars = splitKV(args.at(args.indexOf('--set-secrets') + 1));
+    assert.deepStrictEqual(envVars, { FOO: 'bar:latest' });
+  });
+
   await suite.test('sets labels', async (t) => {
     const mocks = defaultMocks(t.mock, {
       service: 'my-test-service',
@@ -271,16 +328,28 @@ test('#run', { concurrency: true }, async (suite) => {
     assertMembers(args, ['--source', 'example-app']);
   });
 
-  await suite.test('sets metadata if given', async (t) => {
+  await suite.test('sets service metadata if given', async (t) => {
     const mocks = defaultMocks(t.mock, {
-      metadata: 'yaml',
+      metadata: 'tests/fixtures/service.yaml',
       image: '',
     });
 
     await run();
 
     const args = mocks.getExecOutput.mock.calls?.at(0).arguments?.at(1);
-    assertMembers(args, ['services', 'replace', 'yaml']);
+    assertMembers(args, ['services', 'replace']);
+  });
+
+  await suite.test('sets job metadata if given', async (t) => {
+    const mocks = defaultMocks(t.mock, {
+      metadata: 'tests/fixtures/job.yaml',
+      image: '',
+    });
+
+    await run();
+
+    const args = mocks.getExecOutput.mock.calls?.at(0).arguments?.at(1);
+    assertMembers(args, ['jobs', 'replace']);
   });
 
   await suite.test('sets timeout if given', async (t) => {
