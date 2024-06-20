@@ -1,9 +1,10 @@
 # Easy Games Deploy Cloudrun
 
-## Easy Games Deploy Cloudrun
-Changes:
+## Changes:
 * The default option for secrets_update_strategy is now "overwrite" instead of "merge".
 * The default option for env_vars_update_strategy is now "overwrite" instead of "merge".
+
+## Overview
 
 The `deploy-cloudrun` GitHub Action deploys to Google [Cloud Run][cloud-run]. It
 can deploy a container image or from source, and the resulting service URL is
