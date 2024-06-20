@@ -119,7 +119,7 @@ inputs:
       on the Cloud Run service will be replaced with exactly the values given by
       the GitHub Action (making it authoritative).
     required: true
-    default: 'merge'
+    default: 'overwrite'
 
   secrets:
     description: |-
@@ -147,7 +147,7 @@ inputs:
       replaced with exactly the values given by the GitHub Action (making it
       authoritative).
     required: true
-    default: 'merge'
+    default: 'overwrite'
 
   labels:
     description: |-
